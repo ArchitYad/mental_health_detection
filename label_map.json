@@ -1,1 +1,9 @@
-{0 : "depression", 1 : "ptsd", 2 : "ocd",3 : "aspergers",4 : "suicidal",5 : "adhd",6 : "non-suicidal"}
+{
+  "0": "depression",
+  "1": "ptsd",
+  "2": "ocd",
+  "3": "aspergers",
+  "4": "suicidal",
+  "5": "adhd",
+  "6": "non-suicidal"
+}
