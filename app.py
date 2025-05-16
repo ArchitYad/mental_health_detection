@@ -3,11 +3,10 @@ import numpy as np
 import tensorflow as tf
 import re
 import json
+import pickle
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import load_model
-import pickle
-
 from tensorflow.keras.layers import Layer
 
 class AttentionLayer(Layer):
@@ -29,26 +28,28 @@ class AttentionLayer(Layer):
         context_vector = tf.reduce_sum(context_vector, axis=1)
         return context_vector
 
+@st.cache_resource
+def load_model_with_attention():
+    return load_model('models/model.h5', custom_objects={'AttentionLayer': AttentionLayer})
+
+with st.spinner("Loading model..."):
+    model = load_model_with_attention()
+
 with open('label_map.json', 'r') as f:
     label_map = json.load(f)
-
-label_decoder = {v: k for k, v in label_map.items()}
+label_decoder = {int(v): k for k, v in label_map.items()}
 
 with open('tokenizer.pkl', 'rb') as f:
     tokenizer = pickle.load(f)
 
-
-model = load_model('model.h5', custom_objects={'AttentionLayer': AttentionLayer})
-
-
 def clean_text(text):
     text = str(text).lower()
-    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)
-    text = re.sub(r'\@\w+|\#','', text)
+    text = re.sub(r"http\S+|www\S+|https\S+", '', text)
+    text = re.sub(r'\@\w+|\#', '', text)
     text = re.sub(r"[^a-zA-Z\s]", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
-    
+
 st.title("🧠 Mental Health Text Classifier")
 
 user_input = st.text_area("Enter your mental health-related text")
@@ -62,5 +63,5 @@ if st.button("Predict"):
         padded = pad_sequences(seq, maxlen=30, padding='post')
         prediction = model.predict(padded)
         predicted_label_index = np.argmax(prediction)
-        predicted_label = label_decoder[str(predicted_label_index)]  # label_map keys are strings
-        st.success(f"### Predicted Label: `{predicted_label}`")
+        predicted_label = label_decoder[predicted_label_index]
+        st.success(f"Predicted Label: `{predicted_label}`")
