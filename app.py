@@ -36,7 +36,7 @@ class AttentionLayer(Layer):
 
 with open('label_map.json', 'r') as f:
     label_map = json.load(f)
-label_decoder = {v: k for k, v in label_map.items()}
+
 
 with open('tokenizer.pkl', 'rb') as f:
     tokenizer = pickle.load(f)
@@ -68,5 +68,5 @@ if st.button("Predict"):
         padded = pad_sequences(seq, maxlen=30, padding='post')
         prediction = model.predict(padded)
         predicted_label_index = np.argmax(prediction)
-        predicted_label = label_decoder.get(predicted_label_index, "Will use for training and tell you later.")
+        predicted_label =(label_map[predicted_label_index], "Will use for training and tell you later.")
         st.success(f"Predicted Label: `{predicted_label}`")
