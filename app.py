@@ -68,5 +68,5 @@ if st.button("Predict"):
         padded = pad_sequences(seq, maxlen=30, padding='post')
         prediction = model.predict(padded)
         predicted_label_index = np.argmax(prediction)
-        predicted_label = label_decoder[str(predicted_label_index)]
+        predicted_label = label_decoder.get(predicted_label_index, "Will use for training and tell you later.")
         st.success(f"Predicted Label: `{predicted_label}`")
