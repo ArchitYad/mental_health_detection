@@ -5,3 +5,5 @@ groq
 sentencepiece
 protobuf
 numpy
+pandas
+re
