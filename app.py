@@ -123,24 +123,22 @@ label_map = {
 # ================== DETECT FUNCTION ==================
 def detect_condition(text: str) -> str:
     """Detect mental health condition from input text."""
-    if not text.strip():
+    text = text.strip()
+    if not text:
         return "Please enter some text."
 
-    # Tokenize
     inputs = tokenizer(
         text,
         return_tensors="pt",
         truncation=True,
         padding=True,
         max_length=256
-    )
+    ).to(device)  # ✅ move tensors to same device as model
 
-    # Predict
     with torch.no_grad():
         outputs = model(**inputs)
         pred = torch.argmax(outputs.logits, dim=1).item()
 
-    # Map prediction to label
     return label_map.get(pred, "mental health")
 
 # ========== GROQ CLIENT ==========
