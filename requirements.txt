@@ -6,4 +6,4 @@ sentencepiece
 protobuf
 numpy
 pandas
-re
+regex
