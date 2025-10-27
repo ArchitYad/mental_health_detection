@@ -1,6 +1,6 @@
 import streamlit as st
-from transformers import BertTokenizer, BertConfig, BertForSequenceClassification
 import torch
+from transformers import BertTokenizer, BertConfig, BertForSequenceClassification
 import pandas as pd
 import re
 from groq import Groq
