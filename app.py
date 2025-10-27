@@ -7,6 +7,7 @@ from groq import Groq
 import os
 # ========== CONFIGURATION ==========
 MODEL_DIR = "model_llm"
+MODEL_FILE = "pytorch_model.bin"
 GROQ_API_KEY = st.secrets["YOUR_GROQ_API_KEY"]  # Secure key loading 
 
 # ===========================
