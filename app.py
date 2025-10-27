@@ -99,17 +99,15 @@ def load_model():
     # Load tokenizer
     tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
 
-    # Load config
+    # Load config and initialize model
     config = BertConfig.from_pretrained(MODEL_DIR)
-
-    # Initialize model architecture using config
     model = BertForSequenceClassification(config)
 
-    # Load weights manually
+    # Load weights (safe for pre-2.6 files)
     weight_path = os.path.join(MODEL_DIR, MODEL_FILE)
     if os.path.exists(weight_path):
         try:
-            state_dict = torch.load(weight_path, map_location="cpu")
+            state_dict = torch.load(weight_path, map_location="cpu", weights_only=False)
             model.load_state_dict(state_dict, strict=False)
             st.success("✅ Model weights loaded successfully from pytorch_model.bin")
         except Exception as e:
@@ -120,7 +118,6 @@ def load_model():
     model.eval()
     return tokenizer, model
 
-# Initialize model and tokenizer once
 tokenizer, model = load_model()
 
 # ================== LABEL MAP ==================
