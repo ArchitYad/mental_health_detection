@@ -1,5 +1,5 @@
 import streamlit as st
-from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import BertTokenizer, BertConfig, BertForSequenceClassification
 import torch
 import pandas as pd
 import re
