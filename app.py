@@ -10,8 +10,26 @@ GROQ_API_KEY = st.secrets["YOUR_GROQ_API_KEY"]  # Secure key loading
 # ========== LOAD BERT MODEL ==========
 @st.cache_resource
 def load_model():
+    st.write("🔍 Model folder contents:", os.listdir(MODEL_DIR))
+
     tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
-    model = BertForSequenceClassification.from_pretrained(MODEL_DIR)
+    try:
+        # Try normal load first
+        model = BertForSequenceClassification.from_pretrained(MODEL_DIR)
+        st.write("✅ Model loaded successfully from pytorch_model.bin")
+    except Exception as e:
+        st.error(f"⚠️ Direct model load failed: {e}")
+        model = BertForSequenceClassification.from_pretrained(
+            MODEL_DIR, ignore_mismatched_sizes=True
+        )
+        weight_path = os.path.join(MODEL_DIR, "pytorch_model.bin")
+        if os.path.exists(weight_path):
+            state_dict = torch.load(weight_path, map_location="cpu")
+            model.load_state_dict(state_dict, strict=False)
+            st.write("✅ Loaded weights manually from pytorch_model.bin")
+        else:
+            st.error("❌ No pytorch_model.bin found!")
+
     model.eval()
     return tokenizer, model
 
