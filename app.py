@@ -93,33 +93,21 @@ def is_noisy(text):
 # ========== LOAD BERT MODEL ==========
 @st.cache_resource
 def load_model():
-    """Load BERT model and tokenizer manually from local folder."""
-    st.write("🔍 Model folder contents:", os.listdir(MODEL_DIR))
+    """Load BERT model and tokenizer from Hugging Face Hub."""
+    MODEL_REPO = "Arch11yad/mental-health-bert"
 
-    # Load tokenizer
-    tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
-
-    # Load config and initialize model
-    config = BertConfig.from_pretrained(MODEL_DIR)
-    model = BertForSequenceClassification(config)
-
-    # Load weights (safe for pre-2.6 files)
-    weight_path = os.path.join(MODEL_DIR, MODEL_FILE)
-    if os.path.exists(weight_path):
-        try:
-            state_dict = torch.load(weight_path, map_location="cpu", weights_only=False)
-            model.load_state_dict(state_dict, strict=False)
-            st.success("✅ Model weights loaded successfully from pytorch_model.bin")
-        except Exception as e:
-            st.error(f"❌ Failed to load weights manually: {e}")
-    else:
-        st.error("❌ No pytorch_model.bin found in model folder!")
+    st.write("🔍 Loading model from Hugging Face Hub...")
+    tokenizer = BertTokenizer.from_pretrained(MODEL_REPO)
+    model = BertForSequenceClassification.from_pretrained(MODEL_REPO)
 
     model.eval()
-    return tokenizer, model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
 
-tokenizer, model = load_model()
+    st.success("✅ Model loaded successfully from Hugging Face Hub")
+    return tokenizer, model, device
 
+tokenizer, model, device = load_model()
 # ================== LABEL MAP ==================
 label_map = {
     0: "adhd",
