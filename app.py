@@ -98,9 +98,11 @@ def load_model():
     # Load tokenizer
     tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
 
-    # Load config and model architecture
+    # Load config
     config = BertConfig.from_pretrained(MODEL_DIR)
-    model = BertForSequenceClassification.from_config(config)
+
+    # Initialize model architecture using config
+    model = BertForSequenceClassification(config)
 
     # Load weights manually
     weight_path = os.path.join(MODEL_DIR, MODEL_FILE)
@@ -116,7 +118,6 @@ def load_model():
 
     model.eval()
     return tokenizer, model
-
 
 # Initialize model and tokenizer once
 tokenizer, model = load_model()
