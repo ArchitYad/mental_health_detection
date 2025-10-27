@@ -177,14 +177,19 @@ def generate_prompt(label, user_input):
 def generate_advice(label, user_input):
     prompt = generate_prompt(label, user_input)
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {"role": "system", "content": "You are a compassionate and calming therapist-like AI assistant."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "You are a compassionate and calming therapist-like AI assistant."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        st.error(f"⚠️ Could not fetch advice due to an API issue: {e}")
+        return "I'm here for you — take a deep breath and remember, help is always available. 💛"
 
 # ========== STREAMLIT UI ==========
 st.set_page_config(page_title="🧠 Doctor–Advisor Chatbot", layout="wide")
