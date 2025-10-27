@@ -2,7 +2,7 @@ import streamlit as st
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 from groq import Groq
-
+import os
 # ========== CONFIGURATION ==========
 MODEL_DIR = "model_llm"
 GROQ_API_KEY = st.secrets["YOUR_GROQ_API_KEY"]  # Secure key loading 
