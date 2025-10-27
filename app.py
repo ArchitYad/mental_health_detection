@@ -1,41 +1,127 @@
 import streamlit as st
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
+import pandas as pd
+import re
 from groq import Groq
 import os
 # ========== CONFIGURATION ==========
 MODEL_DIR = "model_llm"
 GROQ_API_KEY = st.secrets["YOUR_GROQ_API_KEY"]  # Secure key loading 
 
+# ===========================
+# 🧠 CLEANING FUNCTIONS
+# ===========================
+
+# Define noise patterns
+noise_patterns = [
+    r'^\s*\?\s*$',
+    r'^\s*\...\s*$',
+    r'^\s*\**\s*read title\s*\**\s*$',
+    r'^\s*hi\s*$',
+    r'^\s*hello\s*$',
+    r'^\s*hey\s*$',
+    r'^\s*\.\s*$',
+    r'^\s*\[deleted by user\]\s*$',
+    r'^\s*\\s*$'
+]
+combined_pattern = re.compile('|'.join(noise_patterns), flags=re.IGNORECASE)
+
+
+def clean_mental_health_text(text):
+    """Clean text content before passing to model."""
+    text = text.encode('utf-8', 'ignore').decode('utf-8', 'ignore')
+
+    # Normalize age/gender expressions
+    text = re.sub(r'\[\s*(\d{1,2})\s*[mM]\s*\]', r'\1 year old male', text)
+    text = re.sub(r'\[\s*(\d{1,2})\s*[fF]\s*\]', r'\1 year old female', text)
+    text = re.sub(r'\(\s*(\d{1,2})\s*[mM]\s*\)', r'\1 year old male', text)
+    text = re.sub(r'\(\s*(\d{1,2})\s*[fF]\s*\)', r'\1 year old female', text)
+    text = re.sub(r'(\d{1,2})\s*y/o\b', r'\1 year old', text)
+
+    # Expand abbreviations
+    shortcuts = {
+        r'\bw/': 'with',
+        r'\bw/o': 'without',
+        r'\babt\b': 'about',
+        r'\bbtw\b': 'by the way',
+        r'\bidk\b': 'i do not know',
+        r'\bomg\b': 'oh my god',
+        r'\blol\b': 'laughing',
+        r'\bwtf\b': 'what the fuck',
+        r'\bomw\b': 'on my way',
+        r'\bpls\b': 'please',
+        r'\btho\b': 'though',
+        r'\bbf\b': 'boyfriend',
+        r'\bgf\b': 'girlfriend'
+    }
+    for pattern, repl in shortcuts.items():
+        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+
+    # Medicine-related normalization
+    text = re.sub(r'\b(xr|sr)\b', lambda m: m.group(1).upper(), text)
+    text = re.sub(r'(\d+)\s*mg\b', r'\1mg', text)
+
+    # Smart $ normalization
+    text = re.sub(r'\$\s*(\d+(?:[\.,]\d+)*(?:-\d+(?:[\.,]\d+)*)?)', r'$\1', text)
+    text = re.sub(r'(?<!\d)\$(?!\d)', ' ', text)
+
+    # Remove URLs, mentions, markdown links
+    text = re.sub(r'http\S+|www\S+|\[.*?\]\(.*?\)', 'weblink', text)
+    text = re.sub(r'@\w+', '', text)
+
+    # Remove date formats
+    text = re.sub(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', '', text)
+
+    # Normalize mental health labels
+    text = re.sub(r'\b([a-zA-Z]*-)?(ocd|adhd|ptsd|bpd|asd)\b',
+                  lambda m: m.group(0).lower(), text, flags=re.IGNORECASE)
+
+    # Remove unwanted symbols
+    text = re.sub(r'[_*^#<>|\\`~]+', ' ', text)
+    text = re.sub(r'[^a-zA-Z0-9\s\.,!?\'%$\-/]', ' ', text)
+
+    # Collapse extra spaces
+    return re.sub(r'\s+', ' ', text).strip().lower()
+
+
+def is_noisy(text):
+    """Check if a text matches known noise patterns."""
+    return bool(combined_pattern.match(text.strip()))
+
 # ========== LOAD BERT MODEL ==========
 @st.cache_resource
 def load_model():
+    """Load BERT model and tokenizer manually from local folder."""
     st.write("🔍 Model folder contents:", os.listdir(MODEL_DIR))
 
+    # Load tokenizer
     tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
-    try:
-        # Try normal load first
-        model = BertForSequenceClassification.from_pretrained(MODEL_DIR)
-        st.write("✅ Model loaded successfully from pytorch_model.bin")
-    except Exception as e:
-        st.error(f"⚠️ Direct model load failed: {e}")
-        model = BertForSequenceClassification.from_pretrained(
-            MODEL_DIR, ignore_mismatched_sizes=True
-        )
-        weight_path = os.path.join(MODEL_DIR, "pytorch_model.bin")
-        if os.path.exists(weight_path):
+
+    # Load config and model architecture
+    config = BertConfig.from_pretrained(MODEL_DIR)
+    model = BertForSequenceClassification.from_config(config)
+
+    # Load weights manually
+    weight_path = os.path.join(MODEL_DIR, MODEL_FILE)
+    if os.path.exists(weight_path):
+        try:
             state_dict = torch.load(weight_path, map_location="cpu")
             model.load_state_dict(state_dict, strict=False)
-            st.write("✅ Loaded weights manually from pytorch_model.bin")
-        else:
-            st.error("❌ No pytorch_model.bin found!")
+            st.success("✅ Model weights loaded successfully from pytorch_model.bin")
+        except Exception as e:
+            st.error(f"❌ Failed to load weights manually: {e}")
+    else:
+        st.error("❌ No pytorch_model.bin found in model folder!")
 
     model.eval()
     return tokenizer, model
 
+
+# Initialize model and tokenizer once
 tokenizer, model = load_model()
 
-# Label mapping (8th is NaN → handled as 'mental health')
+# ================== LABEL MAP ==================
 label_map = {
     0: "adhd",
     1: "aspergers",
@@ -47,13 +133,28 @@ label_map = {
     7: "mental health"  # fallback for NaN
 }
 
-# ========== DETECT CONDITION ==========
-def detect_condition(text):
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=256)
+# ================== DETECT FUNCTION ==================
+def detect_condition(text: str) -> str:
+    """Detect mental health condition from input text."""
+    if not text.strip():
+        return "Please enter some text."
+
+    # Tokenize
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=256
+    )
+
+    # Predict
     with torch.no_grad():
         outputs = model(**inputs)
         pred = torch.argmax(outputs.logits, dim=1).item()
-    return label_map.get(pred, "mental health")  # safe fallback
+
+    # Map prediction to label
+    return label_map.get(pred, "mental health")
 
 # ========== GROQ CLIENT ==========
 client = Groq(api_key=GROQ_API_KEY)
@@ -105,18 +206,32 @@ st.set_page_config(page_title="🧠 Doctor–Advisor Chatbot", layout="wide")
 st.title("🧠 Mental Health Doctor–Advisor Chatbot")
 st.markdown("A supportive AI listener that detects your emotions and helps replace negativity with hope 💬")
 
-user_input = st.text_area("How are you feeling today?", placeholder="Type how you're feeling...", height=120)
+# =====================
+# 🗣️ User Input
+# =====================
+user_input = st.text_area(
+    "How are you feeling today?",
+    placeholder="Type how you're feeling...",
+    height=120
+)
 
 if st.button("Talk with Advisor"):
     if user_input.strip():
-        with st.spinner("Analyzing your emotions..."):
-            label = detect_condition(user_input)
-            st.success(f"🩺 Detected emotional state: **{label.upper()}**")
+        # --- Step 1: Clean text first ---
+        clean_text = clean_mental_health_text(user_input)
 
-        with st.spinner("Responding with empathy..."):
-            advice = generate_advice(label, user_input)
-            st.markdown(f"### 💬 Advisor's Response:")
-            st.write(advice)
+        # --- Step 2: Handle noisy inputs ---
+        if is_noisy(clean_text) or not clean_text:
+            st.warning("⚠️ Your input seems too short or unclear — please express a bit more about how you feel 💬")
+        else:
+            with st.spinner("Analyzing your emotions..."):
+                label = detect_condition(clean_text)
+                st.success(f"🩺 Detected emotional state: **{label.upper()}**")
+
+            with st.spinner("Responding with empathy..."):
+                advice = generate_advice(label, clean_text)
+                st.markdown("### 💬 Advisor's Response:")
+                st.write(advice)
     else:
         st.warning("Please type something so I can understand how you feel 💬")
 
